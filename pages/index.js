@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { AlertCircle, ShieldCheck, CheckCircle2, Workflow, FileDown } from 'lucide-react';
 
 const PBE_GREEN = '#00a651';
