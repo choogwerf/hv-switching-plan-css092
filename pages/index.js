@@ -1,310 +1,287 @@
-import React, { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { AlertCircle, ShieldCheck, CheckCircle2, Workflow, FileDown } from 'lucide-react';
+
+const PBE_GREEN = '#00a651';
 
 const DE_STEPS = [
-  { id: 1, description: 'Open feeder breaker Q11-1 at HVDB0027 to remove supply to CSS092', requiresLock: true },
-  { id: 2, description: 'Open incomer Q11-1 at CSS092 RMU; verify VPIS dark', requiresLock: true },
-  { id: 3, description: 'Close earth switch Q11-1E to ground incoming cable and lock/tag', requiresLock: false },
-  { id: 4, description: 'Open transformer feeder Q11-2 to de-energize transformer; verify VPIS dark', requiresLock: true },
-  { id: 5, description: 'Close earth switch Q11-2E to ground transformer primary and lock/tag', requiresLock: false },
-  { id: 6, description: 'Open LV main circuit breaker to isolate secondary side', requiresLock: true },
-  { id: 7, description: 'Prove dead on all ways using approved detector', requiresLock: false },
-  { id: 8, description: 'Fit danger signs and confirm equipment earthed', requiresLock: false },
-  { id: 9, description: 'Issue Permit to Work; transfer PinC key to competent person', requiresLock: false },
+  { id: 'de1', cols: [1, 'HVDB0027 RMU', 'Feeder CB (Q11-1 Incomer)', 'Open feeder breaker to isolate supply to CSS092 and apply lock.', 'Switch key, Cat 3 PPE', 'Yes'], requiresLoto: true },
+  { id: 'de2', cols: [2, 'CSS092 RMU', 'Q11-1 Incomer', 'Open incomer; verify VPIS dark and apply lock.', 'HV handle, LOTO', 'Yes'], requiresLoto: true },
+  { id: 'de3', cols: [3, 'CSS092 RMU', 'Q11-1E Earth Switch', 'Close earth on incomer; lock & tag.', 'Padlock, tag', 'Yes'] },
+  { id: 'de4', cols: [4, 'CSS092 RMU', 'Q11-2 Feeder', 'Open feeder to de-energise transformer and apply lock.', 'HV handle, LOTO', 'Yes'], requiresLoto: true },
+  { id: 'de5', cols: [5, 'CSS092 RMU', 'Q11-2E Earth Switch', 'Close earth on transformer feeder; lock & tag.', 'Padlock, tag', 'Yes'] },
+  { id: 'de6', cols: [6, 'CSS092 LV Board', 'Main CB 415 V', 'Open & isolate LV main; apply lock.', 'Padlock, tag', 'Yes'], requiresLoto: true },
+  { id: 'de7', cols: [7, 'CSS092 RMU', 'All Ways', 'Prove dead with approved 11 kV tester.', 'Proving unit, gloves', 'Yes'] },
+  { id: 'de8', cols: [8, 'CSS092 RMU', 'All Panels', 'Fit danger signs; confirm “earthed”.', 'Signage kit', 'Yes'] },
+  { id: 'de9', cols: [9, 'CSS092 RMU', 'Permit to Work', 'Issue PTW to competent person.', 'PTW book, key safe', '—'] },
 ];
 
 const EN_STEPS = [
-  { id: 1, description: 'Cancel permit and remove tools; retrieve keys', requiresLock: false },
-  { id: 2, description: 'Remove earths in reverse order: Q11-2E → Q11-1E', requiresLock: false },
-  { id: 3, description: 'Close incomer Q11-1 to energize bus; confirm VPIS lit', requiresLock: true },
-  { id: 4, description: 'Close transformer feeder Q11-2 to energize transformer', requiresLock: true },
-  { id: 5, description: 'Close LV main circuit breaker to energize secondary side', requiresLock: true },
-  { id: 6, description: 'Close upstream breaker at HVDB0027 to restore supply', requiresLock: true },
-  { id: 7, description: 'Remove danger signs and confirm normal operation', requiresLock: false },
+  { id: 'en1', cols: [1, 'CSS092 RMU', 'Permit to Work', 'Work complete; cancel PTW & retrieve keys.', 'PTW book', '—'] },
+  { id: 'en2', cols: [2, 'CSS092 RMU', 'Earth Switches', 'Remove earths in reverse order (Q11-2E, Q11-1E, etc.).', 'Padlock keys, HV handle', 'Yes'] },
+  { id: 'en3', cols: [3, 'CSS092 RMU', 'Q11-1 Incomer', 'Close incomer; confirm VPIS lit.', 'HV handle, PPE', 'Yes'] },
+  { id: 'en4', cols: [4, 'CSS092 RMU', 'Q11-2 Feeder', 'Close feeder to energise transformer.', 'HV handle, PPE', 'Yes'] },
+  { id: 'en5', cols: [5, 'CSS092 LV Board', 'Main CB', 'Close LV main to energise board.', 'Multimeter, PPE', 'Yes'] },
+  { id: 'en6', cols: [6, 'HVDB0027 RMU', 'Feeder CB', 'Close feeder breaker to restore supply.', 'Switch key, permit', 'Yes'] },
+  { id: 'en7', cols: [7, 'CSS092 RMU', 'All Panels', 'Remove Danger signs; confirm normal operation.', 'Signage kit', 'Yes'] },
 ];
 
-function initializeSteps(steps) {
-  return steps.map(step => ({
-    ...step,
-    techAName: '',
-    techBName: '',
-    checkedA: false,
-    checkedB: false,
-    lockA: false,
-    lockB: false,
-    timeA: '',
-    timeB: '',
-  }));
-}
-
 export default function Home() {
+  const allSteps = useMemo(() => [...DE_STEPS, ...EN_STEPS], []);
+  const [siteName, setSiteName] = useState('T2D Precast Facility – CSS092');
+  const [wo, setWo] = useState('');
+  const [dateStr, setDateStr] = useState(() => new Date().toLocaleString());
+  const [sigA, setSigA] = useState('');
+  const [sigB, setSigB] = useState('');
   const [activeTab, setActiveTab] = useState('DE');
-  const [deSteps, setDeSteps] = useState(initializeSteps(DE_STEPS));
-  const [enSteps, setEnSteps] = useState(initializeSteps(EN_STEPS));
-  const [finalAName, setFinalAName] = useState('');
-  const [finalBName, setFinalBName] = useState('');
-  const [finalAConfirm, setFinalAConfirm] = useState(false);
-  const [finalBConfirm, setFinalBConfirm] = useState(false);
+  const [state, setState] = useState(() => {
+    const o = {};
+    allSteps.forEach(s => { o[s.id] = { aName: '', bName: '', aDone: false, bDone: false }; });
+    return o;
+  });
 
-  const updateStep = (tab, index, updates) => {
-    if (tab === 'DE') {
-      const newSteps = [...deSteps];
-      newSteps[index] = { ...newSteps[index], ...updates };
-      setDeSteps(newSteps);
-    } else {
-      const newSteps = [...enSteps];
-      newSteps[index] = { ...newSteps[index], ...updates };
-      setEnSteps(newSteps);
-    }
+  const updateName = (id, who, val) => {
+    setState(prev => ({ ...prev, [id]: { ...prev[id], [who === 'a' ? 'aName' : 'bName']: val } }));
   };
 
-  const handleCheck = (tab, index, tech) => {
-    if (tab === 'DE') {
-      const step = deSteps[index];
-      if (tech === 'A' && !step.checkedA) {
-        updateStep(tab, index, { checkedA: true, timeA: new Date().toLocaleString() });
+  const toggle = (id, who, lock) => {
+    setState(prev => {
+      const st = { ...prev[id] };
+      const now = new Date().toLocaleString();
+      if (lock) {
+        if (who === 'a') {
+          if (!st.aDone) return prev;
+          st.aLoto = !st.aLoto;
+          st.aLotoTime = st.aLoto ? now : undefined;
+        } else {
+          if (!st.bDone) return prev;
+          st.bLoto = !st.bLoto;
+          st.bLotoTime = st.bLoto ? now : undefined;
+        }
+      } else {
+        if (who === 'a') {
+          if (!st.aName.trim()) return prev;
+          st.aDone = !st.aDone;
+          st.aTime = st.aDone ? now : undefined;
+          if (!st.aDone) { st.aLoto = false; st.aLotoTime = undefined; }
+        } else {
+          if (!st.bName.trim()) return prev;
+          st.bDone = !st.bDone;
+          st.bTime = st.bDone ? now : undefined;
+          if (!st.bDone) { st.bLoto = false; st.bLotoTime = undefined; }
+        }
       }
-      if (tech === 'B' && !step.checkedB) {
-        updateStep(tab, index, { checkedB: true, timeB: new Date().toLocaleString() });
-      }
-    } else {
-      const step = enSteps[index];
-      if (tech === 'A' && !step.checkedA) {
-        updateStep(tab, index, { checkedA: true, timeA: new Date().toLocaleString() });
-      }
-      if (tech === 'B' && !step.checkedB) {
-        updateStep(tab, index, { checkedB: true, timeB: new Date().toLocaleString() });
-      }
-    }
+      return { ...prev, [id]: st };
+    });
   };
 
-  const handleLock = (tab, index, tech) => {
-    if (tab === 'DE') {
-      const step = deSteps[index];
-      if (tech === 'A' && !step.lockA) {
-        updateStep(tab, index, { lockA: true });
-      }
-      if (tech === 'B' && !step.lockB) {
-        updateStep(tab, index, { lockB: true });
-      }
-    } else {
-      const step = enSteps[index];
-      if (tech === 'A' && !step.lockA) {
-        updateStep(tab, index, { lockA: true });
-      }
-      if (tech === 'B' && !step.lockB) {
-        updateStep(tab, index, { lockB: true });
-      }
-    }
+  const setNote = (id, val) => {
+    setState(prev => ({ ...prev, [id]: { ...prev[id], note: val } }));
   };
 
-  const allDeComplete = deSteps.every(s => s.checkedA && s.checkedB && (!s.requiresLock || (s.lockA && s.lockB)));
-  const allEnComplete = enSteps.every(s => s.checkedA && s.checkedB && (!s.requiresLock || (s.lockA && s.lockB)));
-  const canExport = allDeComplete && allEnComplete && finalAConfirm && finalBConfirm;
+  const progress = () => {
+    const total = allSteps.reduce((acc, st) => acc + 2 + (st.requiresLoto ? 2 : 0), 0);
+    const done = allSteps.reduce((acc, st) => {
+      const ss = state[st.id];
+      const base = (ss.aDone ? 1 : 0) + (ss.bDone ? 1 : 0);
+      const loto = st.requiresLoto ? (ss.aLoto ? 1 : 0) + (ss.bLoto ? 1 : 0) : 0;
+      return acc + base + loto;
+    }, 0);
+    return Math.round((done / Math.max(total, 1)) * 100);
+  };
 
-  const exportPdf = async () => {
-    if (typeof window === 'undefined') return;
-    const { default: html2pdf } = await import('html2pdf.js');
+  const allDone = () => {
+    return allSteps.every(st => {
+      const s = state[st.id];
+      const baseOK = s.aDone && s.bDone;
+      const lotoOK = st.requiresLoto ? s.aLoto && s.bLoto : true;
+      return baseOK && lotoOK;
+    }) && sigA && sigB;
+  };
+
+  const exportPDF = async () => {
+    const module = await import('html2pdf.js');
+    const html2pdf = module.default;
     const element = document.getElementById('export-content');
-    html2pdf().from(element).save('HV_Switching_Plan_CSS092.pdf');
+    html2pdf().from(element).save(`PBE-CSS092-HV-Switching-${new Date().toISOString().slice(0,10)}.pdf`);
   };
+
+  const StepRow = ({ step }) => {
+    const s = state[step.id];
+    const both = s.aDone && s.bDone && (!step.requiresLoto || (s.aLoto && s.bLoto));
+    const lotoBadge = step.requiresLoto ? (
+      <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Locks required</span>
+    ) : null;
+    return (
+      <div className={`grid grid-cols-12 gap-3 p-3 rounded-xl border mb-2 ${both ? 'border-green-500 bg-green-50' : 'border-zinc-200 bg-white'}`}>
+        <div className="col-span-12 md:col-span-6 text-sm">
+          <div className="font-medium flex items-center">{`${step.cols[0]}. ${step.cols[2]}`} {lotoBadge}</div>
+          <div className="text-xs text-zinc-600">Location: {step.cols[1]} • Items: {step.cols[4]} • Safety Person: {step.cols[5]}</div>
+          <div className="text-xs mt-1">Reason: {step.cols[3]}</div>
+          <textarea
+            className="mt-2 w-full p-2 border border-zinc-300 rounded-md text-xs"
+            placeholder="Notes / anomalies (optional)"
+            value={s.note || ''}
+            onChange={(e) => setNote(step.id, e.target.value)}
+          />
+        </div>
+        <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
+          <div className="text-xs font-medium">Technician A</div>
+          <input
+            type="text"
+            placeholder="Type name to enable"
+            value={s.aName}
+            onChange={(e) => updateName(step.id, 'a', e.target.value)}
+            className="border border-zinc-300 rounded-md p-2 text-sm"
+          />
+          <button
+            onClick={() => toggle(step.id, 'a')}
+            disabled={!s.aName.trim()}
+            className={`w-full py-1 rounded-md text-white ${s.aDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {s.aDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
+          </button>
+          {step.requiresLoto && (
+            <button
+              onClick={() => toggle(step.id, 'a', true)}
+              disabled={!s.aDone}
+              className={`w-full py-1 rounded-md ${s.aLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
+            >
+              {s.aLoto ? 'Locks On (A)' : 'Locks Not Applied (A)'}
+            </button>
+          )}
+          <div className="text-[10px] text-zinc-500">{s.aTime ? `A: ${s.aTime}` : ''} {s.aLotoTime ? `• LOTO: ${s.aLotoTime}` : ''}</div>
+        </div>
+        <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
+          <div className="text-xs font-medium">Technician B</div>
+          <input
+            type="text"
+            placeholder="Type name to enable"
+            value={s.bName}
+            onChange={(e) => updateName(step.id, 'b', e.target.value)}
+            className="border border-zinc-300 rounded-md p-2 text-sm"
+          />
+          <button
+            onClick={() => toggle(step.id, 'b')}
+            disabled={!s.bName.trim()}
+            className={`w-full py-1 rounded-md text-white ${s.bDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {s.bDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
+          </button>
+          {step.requiresLoto && (
+            <button
+              onClick={() => toggle(step.id, 'b', true)}
+              disabled={!s.bDone}
+              className={`w-full py-1 rounded-md ${s.bLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
+            >
+              {s.bLoto ? 'Locks On (B)' : 'Locks Not Applied (B)'}
+            </button>
+          )}
+          <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
+        </div>
+      </div>
+    );
+  };
+
+  const pct = progress();
 
   return (
-    <div className="bg-gray-50 text-gray-800 min-h-screen p-4">
-      <header className="flex items-center justify-between border-b pb-4 mb-4">
-        <div className="flex items-center gap-4">
-          <img src="/pbe-logo.png" alt="PBE Logo" className="h-12" />
-          <h1 className="text-2xl font-bold">HV Switching Plan – CSS092</h1>
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-100">
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="flex items-center justify-between bg-white rounded-2xl p-4 shadow mb-6 border border-zinc-200">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: PBE_GREEN }}>
+              <img src="/pbe-logo.png" alt="PBE Logo" className="h-10 w-10 object-contain" />
+            </div>
+            <div>
+              <div className="text-sm text-zinc-500">High Voltage Switching</div>
+              <div className="text-xl font-semibold text-zinc-800">Technician Verification – CSS092 RMU</div>
+              <div className="text-[11px] text-zinc-500">Site: {siteName} • WO: {wo || '-'} • {dateStr}</div>
+            </div>
+          </div>
         </div>
-      </header>
-      <div className="flex gap-4 border-b mb-4">
-        <button
-          onClick={() => setActiveTab('DE')}
-          className={`px-4 py-2 border-b-2 ${activeTab === 'DE' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-600'}`}
-        >
-          De-Energise
-        </button>
-        <button
-          onClick={() => setActiveTab('EN')}
-          className={`px-4 py-2 border-b-2 ${activeTab === 'EN' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-600'}`}
-        >
-          Energise
-        </button>
-      </div>
-      <div id="export-content">
-        {activeTab === 'DE' && (
-          <div>
-            {deSteps.map((step, idx) => (
-              <div key={step.id} className="bg-white p-4 rounded-md shadow mb-4">
-                <div className="font-semibold mb-2">
-                  Step {step.id}: {step.description}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm">Tech A Name</label>
-                    <input
-                      value={step.techAName}
-                      onChange={e => updateStep('DE', idx, { techAName: e.target.value })}
-                      className="border rounded-md w-full p-2 mt-1 mb-2"
-                    />
-                    <button
-                      disabled={!step.techAName || step.checkedA}
-                      onClick={() => handleCheck('DE', idx, 'A')}
-                      className={`w-full py-1 rounded-md mb-2 ${step.checkedA ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                    >
-                      {step.checkedA ? `Open (Checked) ${step.timeA}` : 'Closed (Check)'}
-                    </button>
-                    {step.requiresLock && step.checkedA && (
-                      <button
-                        disabled={step.lockA}
-                        onClick={() => handleLock('DE', idx, 'A')}
-                        className={`w-full py-1 rounded-md ${step.lockA ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white'}`}
-                      >
-                        {step.lockA ? 'Locks On' : 'Confirm Locks On'}
-                      </button>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm">Tech B Name</label>
-                    <input
-                      value={step.techBName}
-                      onChange={e => updateStep('DE', idx, { techBName: e.target.value })}
-                      className="border rounded-md w-full p-2 mt-1 mb-2"
-                    />
-                    <button
-                      disabled={!step.techBName || step.checkedB}
-                      onClick={() => handleCheck('DE', idx, 'B')}
-                      className={`w-full py-1 rounded-md mb-2 ${step.checkedB ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                    >
-                      {step.checkedB ? `Open (Checked) ${step.timeB}` : 'Closed (Check)'}
-                    </button>
-                    {step.requiresLock && step.checkedB && (
-                      <button
-                        disabled={step.lockB}
-                        onClick={() => handleLock('DE', idx, 'B')}
-                        className={`w-full py-1 rounded-md ${step.lockB ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white'}`}
-                      >
-                        {step.lockB ? 'Locks On' : 'Confirm Locks On'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+        <div className="bg-white border border-zinc-200 rounded-2xl p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="text-xs text-zinc-500">Site Name</label>
+              <input value={siteName} onChange={(e) => setSiteName(e.target.value)} className="border border-zinc-300 rounded-md p-2 w-full text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500">Work Order / Permit Ref</label>
+              <input value={wo} onChange={(e) => setWo(e.target.value)} className="border border-zinc-300 rounded-md p-2 w-full text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500">Date/Time</label>
+              <input value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="border border-zinc-300 rounded-md p-2 w-full text-sm" />
+            </div>
           </div>
-        )}
-        {activeTab === 'EN' && (
-          <div>
-            {enSteps.map((step, idx) => (
-              <div key={step.id} className="bg-white p-4 rounded-md shadow mb-4">
-                <div className="font-semibold mb-2">
-                  Step {step.id}: {step.description}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm">Tech A Name</label>
-                    <input
-                      value={step.techAName}
-                      onChange={e => updateStep('EN', idx, { techAName: e.target.value })}
-                      className="border rounded-md w-full p-2 mt-1 mb-2"
-                    />
-                    <button
-                      disabled={!step.techAName || step.checkedA}
-                      onClick={() => handleCheck('EN', idx, 'A')}
-                      className={`w-full py-1 rounded-md mb-2 ${step.checkedA ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                    >
-                      {step.checkedA ? `Open (Checked) ${step.timeA}` : 'Closed (Check)'}
-                    </button>
-                    {step.requiresLock && step.checkedA && (
-                      <button
-                        disabled={step.lockA}
-                        onClick={() => handleLock('EN', idx, 'A')}
-                        className={`w-full py-1 rounded-md ${step.lockA ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white'}`}
-                      >
-                        {step.lockA ? 'Locks On' : 'Confirm Locks On'}
-                      </button>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm">Tech B Name</label>
-                    <input
-                      value={step.techBName}
-                      onChange={e => updateStep('EN', idx, { techBName: e.target.value })}
-                      className="border rounded-md w-full p-2 mt-1 mb-2"
-                    />
-                    <button
-                      disabled={!step.techBName || step.checkedB}
-                      onClick={() => handleCheck('EN', idx, 'B')}
-                      className={`w-full py-1 rounded-md mb-2 ${step.checkedB ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}
-                    >
-                      {step.checkedB ? `Open (Checked) ${step.timeB}` : 'Closed (Check)'}
-                    </button>
-                    {step.requiresLock && step.checkedB && (
-                      <button
-                        disabled={step.lockB}
-                        onClick={() => handleLock('EN', idx, 'B')}
-                        className={`w-full py-1 rounded-md ${step.lockB ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white'}`}
-                      >
-                        {step.lockB ? 'Locks On' : 'Confirm Locks On'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="bg-white p-4 rounded-md shadow mb-8">
-          <h2 className="font-semibold mb-4">Technician Final Sign-Off</h2>
+          <hr className="my-4 border-zinc-200" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm">Technician A Name</label>
-              <input
-                value={finalAName}
-                onChange={e => setFinalAName(e.target.value)}
-                className="border rounded-md w-full p-2 mt-1 mb-2"
-              />
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={finalAConfirm}
-                  onChange={e => setFinalAConfirm(e.target.checked)}
-                  className="mr-2"
-                />
-                I confirm all steps completed (Tech A)
-              </label>
+              <label className="text-xs text-zinc-500">Technician A – Signature (type full name)</label>
+              <input value={sigA} onChange={(e) => setSigA(e.target.value)} placeholder="Type full legal name" className="border border-zinc-300 rounded-md p-2 w-full text-sm" />
             </div>
             <div>
-              <label className="block text-sm">Technician B Name</label>
-              <input
-                value={finalBName}
-                onChange={e => setFinalBName(e.target.value)}
-                className="border rounded-md w-full p-2 mt-1 mb-2"
-              />
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={finalBConfirm}
-                  onChange={e => setFinalBConfirm(e.target.checked)}
-                  className="mr-2"
-                />
-                I confirm all steps completed (Tech B)
-              </label>
+              <label className="text-xs text-zinc-500">Technician B – Signature (type full name)</label>
+              <input value={sigB} onChange={(e) => setSigB(e.target.value)} placeholder="Type full legal name" className="border border-zinc-300 rounded-md p-2 w-full text-sm" />
             </div>
           </div>
-          <button
-            disabled={!canExport}
-            onClick={exportPdf}
-            className={`mt-4 px-4 py-2 rounded-md ${canExport ? 'bg-green-600 text-white' : 'bg-gray-400 text-white'}`}
-          >
-            Confirm & Export PDF
-          </button>
-          {!canExport && (
-            <div className="flex items-center text-sm text-red-600 mt-2">
-              <AlertCircle className="h-4 w-4 mr-1" />
-              Ensure all steps, locks and confirmations are complete before exporting.
+        </div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-zinc-700">
+            <Workflow className="h-5 w-5" />
+            <span className="text-sm">Overall Completion</span>
+          </div>
+          <div className="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-zinc-200">
+            <div className="text-xs text-zinc-600">{pct}%</div>
+            <div className="w-52 h-2 bg-gray-200 rounded">
+              <div style={{ width: `${pct}%` }} className="h-2 bg-green-600 rounded"></div>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-4 mb-4">
+          <button onClick={() => setActiveTab('DE')} className={`px-4 py-2 rounded-xl border ${activeTab === 'DE' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-white text-zinc-700 border-zinc-200'}`}>De-energise</button>
+          <button onClick={() => setActiveTab('EN')} className={`px-4 py-2 rounded-xl border ${activeTab === 'EN' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-white text-zinc-700 border-zinc-200'}`}>Energise</button>
+        </div>
+        <div id="export-content">
+          {activeTab === 'DE' && (
+            <div className="bg-white border border-zinc-200 rounded-xl shadow">
+              <div className="border-b border-zinc-200 p-4">
+                <h2 className="text-lg font-semibold">De-energise – Make Safe</h2>
+              </div>
+              <div className="p-4">
+                {DE_STEPS.map((s) => (
+                  <StepRow key={s.id} step={s} />
+                ))}
+              </div>
             </div>
           )}
+          {activeTab === 'EN' && (
+            <div className="bg-white border border-zinc-200 rounded-xl shadow">
+              <div className="border-b border-zinc-200 p-4">
+                <h2 className="text-lg font-semibold">Energise – Return to Service</h2>
+              </div>
+              <div className="p-4">
+                {EN_STEPS.map((s) => (
+                  <StepRow key={s.id} step={s} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-zinc-700">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-xs">Final confirmation unlocks only when every step has both technicians checked and locks verified (where required), and both typed signatures are present.</span>
+          </div>
+          <div>
+            <button onClick={exportPDF} disabled={!allDone()} className={`flex items-center px-4 py-2 rounded-2xl ${allDone() ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
+              <FileDown className="h-4 w-4 mr-2" />
+              CONFIRM & EXPORT PDF (Technician Verification)
+            </button>
+          </div>
+        </div>
+        <div className="mt-8 text-center text-xs text-zinc-400">
+          © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verification
         </div>
       </div>
     </div>
