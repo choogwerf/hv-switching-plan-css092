@@ -31,7 +31,9 @@ export default function Home() {
   const [wo, setWo] = useState('');
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleString());
   const [sigA, setSigA] = useState('');
+ 
   const [sigB, setSigB] = useState('');
+
   const [activeTab, setActiveTab] = useState('DE');
   const [state, setState] = useState(() => {
     const o = {};
@@ -67,6 +69,8 @@ export default function Home() {
           if (!st.bName.trim()) return prev;
           st.bDone = !st.bDone;
           st.bTime = st.bDone ? now : undefined;
+   
+          
           if (!st.bDone) { st.bLoto = false; st.bLotoTime = undefined; }
         }
       }
@@ -247,6 +251,7 @@ const [StepRow] = useState(() => { return ({ step }) => {
               <div className="border-b border-zinc-200 p-4">
                 <h2 className="text-lg font-semibold">De-energise – Make Safe</h2>
               </div>
+           
               <div className="p-4">
                 {DE_STEPS.map((s) => (
                   <StepRow key={s.id} step={s} />
@@ -280,9 +285,11 @@ const [StepRow] = useState(() => { return ({ step }) => {
           </div>
         </div>
         <div className="mt-8 text-center text-xs text-zinc-400">
-          © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verification
+          © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verificati
+            on
         </div>
       </div>
     </div>
   );
 }
+
