@@ -181,7 +181,9 @@ const [StepRow] = useState(() => { return ({ step }) => {
             </button>
           )}
           <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
-    );
+      </div>
+  </div>
+  );
   };
 });
 
