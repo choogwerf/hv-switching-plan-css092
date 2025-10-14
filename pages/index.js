@@ -105,7 +105,7 @@ export default function Home() {
     html2pdf().from(element).save(`PBE-CSS092-HV-Switching-${new Date().toISOString().slice(0,10)}.pdf`);
   };
 
-  const StepRow = ({ step }) => {
+const [StepRow] = useState(() => { return ({ step }) => {
     const s = state[step.id];
     const both = s.aDone && s.bDone && (!step.requiresLoto || (s.aLoto && s.bLoto));
     const lotoBadge = step.requiresLoto ? (
@@ -177,10 +177,9 @@ export default function Home() {
             </button>
           )}
           <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
-        </div>
-      </div>
     );
   };
+});
 
   const pct = progress();
 
