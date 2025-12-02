@@ -31,7 +31,6 @@ export default function Home() {
   const [wo, setWo] = useState('');
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleString());
   const [sigA, setSigA] = useState('');
- 
   const [sigB, setSigB] = useState('');
 
   const [activeTab, setActiveTab] = useState('DE');
@@ -69,8 +68,6 @@ export default function Home() {
           if (!st.bName.trim()) return prev;
           st.bDone = !st.bDone;
           st.bTime = st.bDone ? now : undefined;
-   
-          
           if (!st.bDone) { st.bLoto = false; st.bLotoTime = undefined; }
         }
       }
@@ -109,14 +106,17 @@ export default function Home() {
     html2pdf().from(element).save(`PBE-CSS092-HV-Switching-${new Date().toISOString().slice(0,10)}.pdf`);
   };
 
-const [StepRow] = useState(() => { return ({ step }) => {
+  // REPLACED: previously StepRow was created via useState which caused a stale closure.
+  // Now StepRow is a normal functional component so it reads current state on each render.
+  const StepRow = ({ step }) => {
     const s = state[step.id];
     const both = s.aDone && s.bDone && (!step.requiresLoto || (s.aLoto && s.bLoto));
     const lotoBadge = step.requiresLoto ? (
       <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Locks required</span>
     ) : null;
+
     return (
-      <div className={`grid grid-cols-12 gap-3 p-3 rounded-xl border mb-2 ${both ? 'border-green-500 bg-green-50' : 'border-zinc-200 bg-white'}`}>
+      <div className={`grid grid-cols-12 gap-3 p-3 rounded-xl border mb-2 ${both ? 'border-green-500 bg-green-50' : 'border-zinc-200 bg-white'}`}> 
         <div className="col-span-12 md:col-span-6 text-sm">
           <div className="font-medium flex items-center">{`${step.cols[0]}. ${step.cols[2]}`} {lotoBadge}</div>
           <div className="text-xs text-zinc-600">Location: {step.cols[1]} • Items: {step.cols[4]} • Safety Person: {step.cols[5]}</div>
@@ -128,6 +128,7 @@ const [StepRow] = useState(() => { return ({ step }) => {
             onChange={(e) => setNote(step.id, e.target.value)}
           />
         </div>
+
         <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
           <div className="text-xs font-medium">Technician A</div>
           <input
@@ -155,6 +156,7 @@ const [StepRow] = useState(() => { return ({ step }) => {
           )}
           <div className="text-[10px] text-zinc-500">{s.aTime ? `A: ${s.aTime}` : ''} {s.aLotoTime ? `• LOTO: ${s.aLotoTime}` : ''}</div>
         </div>
+
         <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
           <div className="text-xs font-medium">Technician B</div>
           <input
@@ -181,11 +183,10 @@ const [StepRow] = useState(() => { return ({ step }) => {
             </button>
           )}
           <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
+        </div>
       </div>
-  </div>
-  );
+    );
   };
-});
 
   const pct = progress();
 
@@ -253,7 +254,7 @@ const [StepRow] = useState(() => { return ({ step }) => {
               <div className="border-b border-zinc-200 p-4">
                 <h2 className="text-lg font-semibold">De-energise – Make Safe</h2>
               </div>
-           
+
               <div className="p-4">
                 {DE_STEPS.map((s) => (
                   <StepRow key={s.id} step={s} />
@@ -280,18 +281,16 @@ const [StepRow] = useState(() => { return ({ step }) => {
             <span className="text-xs">Final confirmation unlocks only when every step has both technicians checked and locks verified (where required), and both typed signatures are present.</span>
           </div>
           <div>
-            <button onClick={exportPDF} disabled={!allDone()} className={`flex items-center px-4 py-2 rounded-2xl ${allDone() ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
+            <button onClick={exportPDF} disabled={!allDone()} className={`flex items-center px-4 py-2 rounded-2xl ${allDone() ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}> 
               <FileDown className="h-4 w-4 mr-2" />
               CONFIRM & EXPORT PDF (Technician Verification)
             </button>
           </div>
         </div>
         <div className="mt-8 text-center text-xs text-zinc-400">
-          © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verificati
-            on
+          © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verification
         </div>
       </div>
     </div>
   );
 }
-
