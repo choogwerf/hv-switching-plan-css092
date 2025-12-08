@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertCircle, ShieldCheck, CheckCircle2, Workflow, FileDown } from 'lucide-react';
 
 const PBE_GREEN = '#00a651';
@@ -24,6 +24,87 @@ const EN_STEPS = [
   { id: 'en6', cols: [6, 'HVDB0027 RMU', 'Feeder CB', 'Close feeder breaker to restore supply.', 'Switch key, permit', 'Yes'] },
   { id: 'en7', cols: [7, 'CSS092 RMU', 'All Panels', 'Remove Danger signs; confirm normal operation.', 'Signage kit', 'Yes'] },
 ];
+
+// Move StepRow to module scope so React sees a stable component type and doesn't remount inputs.
+const StepRow = ({ step, stepState, updateName, toggle, setNote }) => {
+  const s = stepState;
+  const both = s.aDone && s.bDone && (!step.requiresLoto || (s.aLoto && s.bLoto));
+  const lotoBadge = step.requiresLoto ? (
+    <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Locks required</span>
+  ) : null;
+
+  return (
+    <div className={`grid grid-cols-12 gap-3 p-3 rounded-xl border mb-2 ${both ? 'border-green-500 bg-green-50' : 'border-zinc-200 bg-white'}`}> 
+      <div className="col-span-12 md:col-span-6 text-sm">
+        <div className="font-medium flex items-center">{`${step.cols[0]}. ${step.cols[2]}`} {lotoBadge}</div>
+        <div className="text-xs text-zinc-600">Location: {step.cols[1]} • Items: {step.cols[4]} • Safety Person: {step.cols[5]}</div>
+        <div className="text-xs mt-1">Reason: {step.cols[3]}</div>
+        <textarea
+          className="mt-2 w-full p-2 border border-zinc-300 rounded-md text-xs"
+          placeholder="Notes / anomalies (optional)"
+          value={s.note || ''}
+          onChange={(e) => setNote(step.id, e.target.value)}
+        />
+      </div>
+
+      <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
+        <div className="text-xs font-medium">Technician A</div>
+        <input
+          type="text"
+          placeholder="Type name to enable"
+          value={s.aName}
+          onChange={(e) => updateName(step.id, 'a', e.target.value)}
+          className="border border-zinc-300 rounded-md p-2 text-sm"
+        />
+        <button
+          onClick={() => toggle(step.id, 'a')}
+          disabled={!s.aName.trim()}
+          className={`w-full py-1 rounded-md text-white ${s.aDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`} 
+        >
+          {s.aDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
+        </button>
+        {step.requiresLoto && (
+          <button
+            onClick={() => toggle(step.id, 'a', true)}
+            disabled={!s.aDone}
+            className={`w-full py-1 rounded-md ${s.aLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
+          >
+            {s.aLoto ? 'Locks On (A)' : 'Locks Not Applied (A)'}
+          </button>
+        )}
+        <div className="text-[10px] text-zinc-500">{s.aTime ? `A: ${s.aTime}` : ''} {s.aLotoTime ? `• LOTO: ${s.aLotoTime}` : ''}</div>
+      </div>
+
+      <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
+        <div className="text-xs font-medium">Technician B</div>
+        <input
+          type="text"
+          placeholder="Type name to enable"
+          value={s.bName}
+          onChange={(e) => updateName(step.id, 'b', e.target.value)}
+          className="border border-zinc-300 rounded-md p-2 text-sm"
+        />
+        <button
+          onClick={() => toggle(step.id, 'b')}
+          disabled={!s.bName.trim()}
+          className={`w-full py-1 rounded-md text-white ${s.bDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+        >
+          {s.bDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
+        </button>
+        {step.requiresLoto && (
+          <button
+            onClick={() => toggle(step.id, 'b', true)}
+            disabled={!s.bDone}
+            className={`w-full py-1 rounded-md ${s.bLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
+          >
+            {s.bLoto ? 'Locks On (B)' : 'Locks Not Applied (B)'}
+          </button>
+        )}
+        <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
+      </div>
+    </div>
+  );
+};
 
 export default function Home() {
   const allSteps = useMemo(() => [...DE_STEPS, ...EN_STEPS], []);
@@ -106,88 +187,6 @@ export default function Home() {
     html2pdf().from(element).save(`PBE-CSS092-HV-Switching-${new Date().toISOString().slice(0,10)}.pdf`);
   };
 
-  // REPLACED: previously StepRow was created via useState which caused a stale closure.
-  // Now StepRow is a normal functional component so it reads current state on each render.
-  const StepRow = ({ step }) => {
-    const s = state[step.id];
-    const both = s.aDone && s.bDone && (!step.requiresLoto || (s.aLoto && s.bLoto));
-    const lotoBadge = step.requiresLoto ? (
-      <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Locks required</span>
-    ) : null;
-
-    return (
-      <div className={`grid grid-cols-12 gap-3 p-3 rounded-xl border mb-2 ${both ? 'border-green-500 bg-green-50' : 'border-zinc-200 bg-white'}`}> 
-        <div className="col-span-12 md:col-span-6 text-sm">
-          <div className="font-medium flex items-center">{`${step.cols[0]}. ${step.cols[2]}`} {lotoBadge}</div>
-          <div className="text-xs text-zinc-600">Location: {step.cols[1]} • Items: {step.cols[4]} • Safety Person: {step.cols[5]}</div>
-          <div className="text-xs mt-1">Reason: {step.cols[3]}</div>
-          <textarea
-            className="mt-2 w-full p-2 border border-zinc-300 rounded-md text-xs"
-            placeholder="Notes / anomalies (optional)"
-            value={s.note || ''}
-            onChange={(e) => setNote(step.id, e.target.value)}
-          />
-        </div>
-
-        <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
-          <div className="text-xs font-medium">Technician A</div>
-          <input
-            type="text"
-            placeholder="Type name to enable"
-            value={s.aName}
-            onChange={(e) => updateName(step.id, 'a', e.target.value)}
-            className="border border-zinc-300 rounded-md p-2 text-sm"
-          />
-          <button
-            onClick={() => toggle(step.id, 'a')}
-            disabled={!s.aName.trim()}
-            className={`w-full py-1 rounded-md text-white ${s.aDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
-          >
-            {s.aDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
-          </button>
-          {step.requiresLoto && (
-            <button
-              onClick={() => toggle(step.id, 'a', true)}
-              disabled={!s.aDone}
-              className={`w-full py-1 rounded-md ${s.aLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
-            >
-              {s.aLoto ? 'Locks On (A)' : 'Locks Not Applied (A)'}
-            </button>
-          )}
-          <div className="text-[10px] text-zinc-500">{s.aTime ? `A: ${s.aTime}` : ''} {s.aLotoTime ? `• LOTO: ${s.aLotoTime}` : ''}</div>
-        </div>
-
-        <div className="col-span-12 md:col-span-3 flex flex-col gap-2">
-          <div className="text-xs font-medium">Technician B</div>
-          <input
-            type="text"
-            placeholder="Type name to enable"
-            value={s.bName}
-            onChange={(e) => updateName(step.id, 'b', e.target.value)}
-            className="border border-zinc-300 rounded-md p-2 text-sm"
-          />
-          <button
-            onClick={() => toggle(step.id, 'b')}
-            disabled={!s.bName.trim()}
-            className={`w-full py-1 rounded-md text-white ${s.bDone ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
-          >
-            {s.bDone ? <span className="flex items-center justify-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Open (Checked)</span> : <span className="flex items-center justify-center"><ShieldCheck className="h-4 w-4 mr-1" /> Closed (Check)</span>}
-          </button>
-          {step.requiresLoto && (
-            <button
-              onClick={() => toggle(step.id, 'b', true)}
-              disabled={!s.bDone}
-              className={`w-full py-1 rounded-md ${s.bLoto ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-white border border-red-300 text-red-700 hover:bg-red-50'}`}
-            >
-              {s.bLoto ? 'Locks On (B)' : 'Locks Not Applied (B)'}
-            </button>
-          )}
-          <div className="text-[10px] text-zinc-500">{s.bTime ? `B: ${s.bTime}` : ''} {s.bLotoTime ? `• LOTO: ${s.bLotoTime}` : ''}</div>
-        </div>
-      </div>
-    );
-  };
-
   const pct = progress();
 
   return (
@@ -205,6 +204,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+
         <div className="bg-white border border-zinc-200 rounded-2xl p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
@@ -232,6 +232,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 text-zinc-700">
             <Workflow className="h-5 w-5" />
@@ -244,10 +245,12 @@ export default function Home() {
             </div>
           </div>
         </div>
+
         <div className="flex gap-4 mb-4">
           <button onClick={() => setActiveTab('DE')} className={`px-4 py-2 rounded-xl border ${activeTab === 'DE' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-white text-zinc-700 border-zinc-200'}`}>De-energise</button>
           <button onClick={() => setActiveTab('EN')} className={`px-4 py-2 rounded-xl border ${activeTab === 'EN' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-white text-zinc-700 border-zinc-200'}`}>Energise</button>
         </div>
+
         <div id="export-content">
           {activeTab === 'DE' && (
             <div className="bg-white border border-zinc-200 rounded-xl shadow">
@@ -256,25 +259,41 @@ export default function Home() {
               </div>
 
               <div className="p-4">
-                {DE_STEPS.map((s) => (
-                  <StepRow key={s.id} step={s} />
+                {DE_STEPS.map((step) => (
+                  <StepRow
+                    key={step.id}
+                    step={step}
+                    stepState={state[step.id]}
+                    updateName={updateName}
+                    toggle={toggle}
+                    setNote={setNote}
+                  />
                 ))}
               </div>
             </div>
           )}
+
           {activeTab === 'EN' && (
             <div className="bg-white border border-zinc-200 rounded-xl shadow">
               <div className="border-b border-zinc-200 p-4">
                 <h2 className="text-lg font-semibold">Energise – Return to Service</h2>
               </div>
               <div className="p-4">
-                {EN_STEPS.map((s) => (
-                  <StepRow key={s.id} step={s} />
+                {EN_STEPS.map((step) => (
+                  <StepRow
+                    key={step.id}
+                    step={step}
+                    stepState={state[step.id]}
+                    updateName={updateName}
+                    toggle={toggle}
+                    setNote={setNote}
+                  />
                 ))}
               </div>
             </div>
           )}
         </div>
+
         <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-zinc-700">
             <AlertCircle className="h-4 w-4" />
@@ -287,6 +306,7 @@ export default function Home() {
             </button>
           </div>
         </div>
+
         <div className="mt-8 text-center text-xs text-zinc-400">
           © {new Date().getFullYear()} Pyott Boone Electronics – HV Switching • CSS092 • Dual Technician Verification
         </div>
